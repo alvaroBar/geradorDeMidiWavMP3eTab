@@ -133,7 +133,160 @@ BIBLIOTECA_MUSICAS = {
             ('G', 2, 0.5), ('D', 3, 0.5), ('G', 0, 0.5), ('D', 2, 0.5), ('D', 3, 0.5), ('D', 2, 0.5), ('D', 3, 0.5)
 
         ]
-    }
+    },
+"7": {
+        "titulo": "O Cravo Brigou com a Rosa",
+        "bpm": 115,
+        "compasso": (3, 4), # Marcha
+        "seq": [
+            # PARTE 1: "O cra-vo bri-gou com a ro-sa"
+            # Notas: Ré Ré Mi Ré Si Sol Si Lá
+            # Usa corda Si casa 3, Mizinha solta, Si solta, Sol solta...
+            ('G', 0, 1), ('G', 0, 1),  # O cra
+            ('D', 2, 0.5), ('B', 1, 0.5),  # vo bri
+            ('B', 0, 0.5), ('G', 2, 0.5),  # gou com
+            ('G', 0, 1), ('D', 3, 1.0),  # a ro-sa (Lá)
+
+            # PARTE 2: "De-bai-xo de u-ma sa-ca-da"
+            # Notas: Ré Ré Mi Ré Si Sol Lá Sol
+            ('G', 2, 1), ('G', 2, 1),  # De-bai
+            ('D', 3, 0.5), ('B', 1, 0.5),  # xo de_u
+            ('B', 0, 0.5), ('G', 2, 0.5),  # ma sa
+            ('G', 0, 2), ('G', 0, 1),  # ca-da (Sol)
+
+            # PARTE 3: "O cra-vo sa-iu fe-ri-do"
+            # Notas: Sol Lá Si Dó Ré Si Lá
+            # Sobe a escala
+            ('B', 1, 1), ('B', 1, 0.5),  # O cra
+            ('B', 1, 0.5), ('B', 3, 0.5),  # vo sa
+            ('B', 1, 0.5), ('B', 0, 1),  # iu fe
+            ('G', 2, 1.0),                 # ri-do (Lá)
+
+            # PARTE 4: "E a ro-sa des-pe-da-ça-da"
+            # Notas: Lá Si Dó Ré Dó Lá Sol
+            # Faz a curva final para resolver
+            ('G', 2, 1), ('G', 0, 1),  # E_a ro
+            ('B', 0, 0.5), ('G', 2, 0.5),  # sa des
+            ('D', 3, 0.5), ('D', 0, 0.5),  # pe-da
+            ('A', 3, 2.0) # ça-da (Sol final)
+        ]
+    },
+
+"8": {
+        "titulo": "Cai Cai Balão",
+        "bpm": 100,
+        "compasso": (2, 4), # 2/4 (Cantiga/Marcha)
+        "seq": [
+            # PARTE 1: "Cai cai ba-lão"
+            # Notas: Mi Mi Ré Dó
+            # (Começa na Mizinha solta)
+            ('G', 0, 1), ('G', 0, 1.5),  # Cai cai
+            ('D', 3, 0.5), ('D', 2, 1),  # ba-lão (Ré Dó)
+
+            # PARTE 2: "Cai cai ba-lão" (Repete)
+            ('G', 0, 1), ('G', 0, 1.5),
+            ('D', 3, 0.5), ('D', 2, 1),
+
+            # PARTE 3: "A-qui na mi-nha mão"
+            # Notas: Dó Ré Mi Ré Dó Si
+            # (Sobe um pouco e repousa no Si corda solta)
+            ('G', 0, 1), ('G', 2, 1),  # A-qui
+            ('G', 0, 1), ('D', 3, 1),  # na mi
+            ('D', 2, 1), ('D', 0, 2),  # nha mão (Si)
+
+            # PARTE 4: "Não cai não"
+            # Notas: Si Si Lá (Desce a escada)
+            ('D', 0, 0.5), ('D', 2, 0.5),  # Não cai
+            ('D', 3, 1.0),                 # não (Lá)
+
+            # PARTE 5: "Não cai não"
+            # Notas: Lá Lá Sol (Desce mais um degrau)
+            ('D', 0, 0.5), ('D', 2, 0.5),  # Não cai
+            ('D', 3, 1.0),  # não (Sol)
+
+            # PARTE 6: "Não cai não"
+            # Notas: Sol Sol Fá
+            # (Usa o Fá na corda Ré casa 3)
+            ('D', 0, 0.5), ('D', 2, 0.5),  # Não cai
+            ('D', 3, 2),                # não (Fá Natural)
+
+            # PARTE 7: "Cai na ru-a do sa-bão"
+            # Notas: Fá Sol Lá Si Dó
+            # (Sobe a escala toda para acabar)
+            ('G', 0, 1), ('G', 2, 1),  # Cai na
+            ('G', 0, 1), ('D', 3, 1),  # ru-a
+            ('D', 2, 1), ('D', 0, 1),  # do sa- (Dó final)
+            ('A', 3, 2)                # bão
+        ]
+    },
+    "9": {
+        "titulo": "A Dona Aranha",
+        "bpm": 120,
+        "compasso": (4, 4),  # 4/4 (Tempo Comum)
+        "seq": [
+            # PARTE 1: "A do-na a-ra-nha su-biu pe-la pa-re-de"
+            # Notas: Dó Ré Mi Fá Sol Sol Lá Sol | Fá Mi Ré Dó
+            ('B', 1, 2), ('B', 1, 1), ('B', 3, 1),   # A do-na a-
+            ('e', 0, 2), ('e', 0, 1), ('e', 0, 1),   # ra-nha su-
+            ('B', 3, 1), ('B', 1, 1),('B', 3, 1), ('e', 0, 1), # biu pe-la pa-
+            ('B', 1, 2), ('B', 1, 2),  #re-de
+
+            # PARTE 2: "Veio a chu-va for-te e a de-rru-bou"
+            # Notas: Sol Fá Mi Ré Dó
+            ('B', 1, 1), ('B', 1, 1), ('B', 1, 1), ('B', 3, 1),  # Veio a chu-va
+            ('e', 0, 2), ('e', 0, 2), # for-te
+            ('B', 3, 1), ('B', 1, 1), ('B', 3, 1), ('e', 0, 1.0),  # e a de-rru-
+            ('B',1,4),
+
+            # PARTE 3: "Já pa-ssou a chu-va e o Sol já vai sur-gin-do"
+            # Notas: Dó Ré Mi Fá Sol Sol Lá Sol | Fá Mi Ré Dó
+            # (Repete a melodia da subida)
+            ('e', 5, 1), ('e', 5, 1), ('e', 5, 1), ('e', 5, 1),  # Já pa-ssou a
+            ('e', 3, 2), ('B',1,2),  # chu-va
+            ('e', 5, 1), ('e', 5, 1), ('e', 5, 1), ('e', 5, 1),  # Já pa-ssou a
+            ('e', 3, 2), ('B', 1, 2),  # chu-va
+            ('B',1,1), ('B',1,1), ('B',1,1), ('B',3,1),#e o Sol já vai
+            ('e',0,1), ('e',0,1), ('e',0,1), ('e',0,1),  #sur-gin-do
+            ('B',3,1), ('B',1,1), ('B',3,1), ('e',0,1),
+            ('B', 1,2), ('B', 1,2)
+        ]
+    },
+
+    "10": {
+        "titulo": "Baby Shark",
+        "bpm": 116,
+        "compasso": (2, 4),  # 2/4
+        "seq": [
+            # --- PARTE 1: "Ba-by Shark doo doo doo..." ---
+            # Notas: Ré Mi Sol Sol Sol Sol Sol Sol Sol
+            # (Corda Si casa 3 -> Mizinha Solta -> Mizinha casa 3)
+            ('B', 3, 1.0), ('e', 0, 1.0),  # Ba-by (Ré Mi)
+
+            # O "doo doo doo..." são 7 notas rápidas (Sol)
+            ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.25),
+            ('e', 3, 0.5), ('e', 3, 0.25), ('e', 3, 0.5),
+
+            ('B', 3, 0.5), ('e', 0, 0.5),
+
+            # --- PARTE 2: Repete a mesma frase ---
+            ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.25),
+            ('e', 3, 0.5), ('e', 3, 0.25), ('e', 3, 0.5),
+
+            ('B', 3, 0.5), ('e', 0, 0.5),
+
+            # --- PARTE 3: Repete mais uma vez ---
+            ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.5), ('e', 3, 0.25),
+            ('e', 3, 0.5), ('e', 3, 0.25), ('e', 3, 0.5),
+            ('e', 3, 0.5), ('e', 3, 0.5),
+
+            # --- PARTE 4: "Ba-by Shark!" (Finalização) ---
+            # Notas: Sol Sol Fá#
+            # Aqui usamos a nota Fá Sustenido (Mizinha casa 2)
+            ('e', 2, 2)
+        ]
+    },
+
+
 }
 
 

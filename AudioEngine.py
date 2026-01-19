@@ -1,122 +1,142 @@
+from pydub import AudioSegment, effects
+from pydub.silence import detect_leading_silence
+import os
+import numpy as np  # Necessário se for usar arrays em algum momento, mas aqui é pydub
+
+
 # ==============================================================================
-# 2. MOTOR DE ÁUDIO (KARPLUS-STRONG - VERSÃO GRAVE/BASS BOOST)
+# 2. MOTOR DE ÁUDIO (SAMPLES REAIS + FIX WINDOWS + PITCH SHIFT)
 # ==============================================================================
-import wave
-
-import numpy as np
-
-from Config import Config
-
-
 class AudioEngine:
-    @staticmethod
-    def _get_freq(string, fret):
-        base = Config.FREQS.get(string, 0)
-        return base * (2 ** (fret / 12.0))
+    _samples_cache = {}
 
     @staticmethod
-    def karplus_strong(freq, duration, sample_rate=44100):
+    def _trim_silence(audio, silence_threshold=-40.0, chunk_size=10):
         """
-        Gera som com física de corda, ajustado para timbre mais grave/encorpado.
+        Corta o silêncio inicial para evitar LAG no jogo.
+        O áudio deve começar exatamente no ataque da corda.
         """
-        N = int(sample_rate / freq)
+        trim_ms = detect_leading_silence(audio, silence_threshold=silence_threshold, chunk_size=chunk_size)
+        # Deixa uma margemzinha minúscula (5ms) para não cortar o ataque transitório
+        trim_ms = max(0, trim_ms - 5)
+        return audio[trim_ms:]
 
-        # 1. Excitação Inicial (O "Pluck")
-        buf = np.random.uniform(-1, 1, N)
+    @staticmethod
+    def load_string_sample(string_name):
+        """Carrega, limpa e normaliza o sample."""
+        if string_name in AudioEngine._samples_cache:
+            return AudioEngine._samples_cache[string_name]
 
-        # --- BASS BOOST TRICK 1: Suavizar o ataque ---
-        # Passamos um filtro no ruído inicial para simular tocar com o dedo (mais grave)
-        # em vez de palheta (muito agudo/estalo).
-        for _ in range(4):  # Repetir 4x remove bem os agudos iniciais
-            buf = 0.5 * (buf + np.roll(buf, 1))
+        # --- CORREÇÃO DO WINDOWS (Case Insensitive) ---
+        file_map = {
+            'e': 'e_aguda.wav',  # Mizinha (renomeie o arquivo na pasta para e_aguda.wav)
+            'E': 'E.wav'  # Mizona
+        }
 
-        n_samples = int(sample_rate * duration)
-        samples = np.zeros(n_samples)
+        # Define o nome do arquivo alvo
+        target_file = file_map.get(string_name, f"{string_name}.wav")
 
-        idx = 0
-        # Decay mais alto (0.997) aumenta o sustain (comum em cordas graves)
-        decay = 0.997
+        # Lista de tentativas (WAV preferido, M4A backup)
+        options = [
+            f"samples/{target_file}",
+            f"samples/{string_name}.m4a"
+        ]
 
-        # Variável para o filtro de saída (Low Pass)
-        last_output = 0
+        audio = None
+        for path in options:
+            if os.path.exists(path):
+                try:
+                    audio = AudioSegment.from_file(path)
+                    # print(f"   > Carregado: {path}") # Descomente para debug
+                    break
+                except Exception as e:
+                    print(f"   > Erro ao ler {path}: {e}")
 
-        for i in range(n_samples):
-            # Algoritmo Karplus-Strong Padrão
-            current_sample = buf[idx]
-            next_sample = buf[(idx + 1) % N]
+        if audio:
+            # --- TRATAMENTO AUTOMÁTICO ---
+            audio = audio.set_channels(1)
+            audio = AudioEngine._trim_silence(audio)
 
-            # Média (filtro da corda)
-            new_val = 0.5 * (current_sample + next_sample)
-            buf[idx] = new_val * decay
-            idx = (idx + 1) % N
+            # Filtros para limpar ruído de celular
+            audio = audio.high_pass_filter(80)  # Tira "pups" graves
+            audio = audio.low_pass_filter(6000)  # Tira chiado muito agudo
 
-            # --- BASS BOOST TRICK 2: Filtro de Tom na Saída ---
-            # Funciona como um equalizador cortando frequências altas
-            # Mistura 60% do som atual com 40% do som anterior (suavização)
-            output = 0.6 * current_sample + 0.4 * last_output
-            last_output = output
+            audio = effects.normalize(audio)
 
-            samples[i] = output
+            AudioEngine._samples_cache[string_name] = audio
+            return audio
+        else:
+            print(f"!!! ARQUIVO NÃO ENCONTRADO PARA CORDA: {string_name}")
+            if string_name == 'e':
+                print("    (Lembre-se de renomear a mizinha para 'e_aguda.wav' na pasta samples)")
+            return None
 
-        return samples
+    @staticmethod
+    def pitch_shift(audio_segment, semitones):
+        """
+        Altera a afinação mudando a taxa de amostragem (Sample Rate).
+        Simula a física real de encurtar a corda no traste.
+        """
+        if semitones == 0:
+            return audio_segment
+
+        # Calcula novo sample rate para mudar o tom
+        new_rate = int(audio_segment.frame_rate * (2.0 ** (semitones / 12.0)))
+
+        # Cria novo áudio com taxa alterada
+        shifted = audio_segment._spawn(audio_segment.raw_data, overrides={'frame_rate': new_rate})
+
+        # Retorna para taxa padrão (44100) para poder mixar com o resto
+        return shifted.set_frame_rate(44100)
 
     @staticmethod
     def generate_wav(sequence, bpm, filename="temp_music.wav"):
         try:
-            sample_rate = 44100
-            audio_data = []
-            seconds_per_beat = 60.0 / bpm
+            # Cria base de silêncio
+            song_audio = AudioSegment.silent(duration=100)
+            ms_per_beat = (60.0 / bpm) * 1000.0
+            current_pos_ms = 500  # 0.5s de margem inicial
 
-            # Silêncio inicial para garantir buffer de áudio
-            audio_data.append(np.zeros(int(sample_rate * 0.1)))
+            print("   > Renderizando áudio com samples...")
 
             for item in sequence:
                 string, fret, beats = item
-                duration = beats * seconds_per_beat
-                # Sustain extra para dar corpo ao som
-                sustain_duration = duration + 0.25
+                duration_ms = beats * ms_per_beat
 
                 if string == 'PAUSA':
-                    wave_chunk = np.zeros(int(sample_rate * duration))
+                    current_pos_ms += duration_ms
                 else:
-                    freq = AudioEngine._get_freq(string, fret)
-                    wave_chunk = AudioEngine.karplus_strong(freq, sustain_duration, sample_rate)
+                    # 1. Carrega Sample
+                    base_sample = AudioEngine.load_string_sample(string)
 
-                    # Lógica de corte suave (Fade Out)
-                    target_len = int(sample_rate * duration)
-                    if len(wave_chunk) > target_len:
-                        fade_len = 300
-                        wave_chunk = wave_chunk[:target_len]
-                        if len(wave_chunk) > fade_len:
-                            wave_chunk[-fade_len:] *= np.linspace(1, 0, fade_len)
-                    else:
-                        padding = np.zeros(target_len - len(wave_chunk))
-                        wave_chunk = np.concatenate((wave_chunk, padding))
+                    if base_sample:
+                        # 2. Muda o Tom (Pitch Shift)
+                        # AQUI ESTAVA O ERRO: A função pitch_shift precisa existir na classe
+                        note_audio = AudioEngine.pitch_shift(base_sample, fret)
 
-                audio_data.append(wave_chunk)
+                        # 3. Ajuste de Duração
+                        play_duration = duration_ms + 150  # Sustain extra
 
-            if not audio_data: return None
+                        # Fade out se for muito longo
+                        if len(note_audio) > play_duration + 200:
+                            note_audio = note_audio[:play_duration + 200].fade_out(150)
 
-            audio_concat = np.concatenate(audio_data)
+                        # 4. Mixagem (Aumenta o canvas se precisar)
+                        if current_pos_ms + len(note_audio) > len(song_audio):
+                            padding = (current_pos_ms + len(note_audio)) - len(song_audio) + 500
+                            song_audio += AudioSegment.silent(duration=padding)
 
-            # Normalização Segura
-            max_val = np.max(np.abs(audio_concat))
-            if max_val > 0:
-                # Volume a 95% para garantir presença
-                audio_concat = audio_concat / max_val * 0.95
+                        # Cola a nota (reduz volume levemente para não estourar na soma)
+                        song_audio = song_audio.overlay(note_audio - 1.5, position=int(current_pos_ms))
 
-            audio_int16 = (audio_concat * 32767).astype(np.int16)
+                    current_pos_ms += duration_ms
 
-            with wave.open(filename, 'w') as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)
-                wav_file.setframerate(sample_rate)
-                wav_file.writeframes(audio_int16.tobytes())
-
+            # Salva
+            song_audio.export(filename, format="wav")
             return filename
+
         except Exception as e:
             print(f"Erro no AudioEngine: {e}")
-            # Import traceback apenas se der erro para debug
             import traceback
             traceback.print_exc()
             return None

@@ -20,11 +20,9 @@ class AudioEngine:
     @staticmethod
     def load_string_sample(string_name):
         if string_name in AudioEngine._samples_cache: return AudioEngine._samples_cache[string_name]
-
         file_map = {'e': 'e_aguda.wav', 'E': 'E.wav'}
         target = file_map.get(string_name, f"{string_name}.wav")
         options = [f"samples/{target}", f"samples/{string_name}.m4a"]
-
         audio = None
         for path in options:
             if os.path.exists(path):
@@ -33,7 +31,6 @@ class AudioEngine:
                     break
                 except:
                     pass
-
         if audio:
             audio = audio.set_channels(1)
             audio = AudioEngine._trim_silence(audio)
@@ -66,16 +63,12 @@ class AudioEngine:
                     samp = AudioEngine.load_string_sample(s)
                     if samp:
                         note = AudioEngine.pitch_shift(samp, f)
-                        play_dur = dur + 200  # Sustain
-                        if len(note) > play_dur + 100:
-                            note = note[:play_dur + 100].fade_out(100)
-
+                        play_dur = dur + 200
+                        if len(note) > play_dur + 100: note = note[:play_dur + 100].fade_out(100)
                         if pos + len(note) > len(song):
                             song += AudioSegment.silent(duration=(pos + len(note) - len(song) + 500))
-
                         song = song.overlay(note - 2.0, position=int(pos))
                     pos += dur
-
             song.export(filename, format="wav")
             return filename
         except Exception as e:

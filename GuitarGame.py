@@ -22,71 +22,36 @@ class GuitarGame:
         self.font = pygame.font.SysFont("Arial", 22, bold=True)
         self.small_font = pygame.font.SysFont("Arial", 16)
 
-    def _draw_static_neck(self, surface):
-        # 1. Braço de Madeira (Começa APÓS a pestana)
-        neck_width = Config.WIDTH - Config.NECK_START_X
-        rect_neck = pygame.Rect(
-            Config.NECK_START_X,
-            Config.NECK_AREA_START_Y,
-            neck_width,
-            Config.NECK_HEIGHT
-        )
-        pygame.draw.rect(surface, Config.WOOD_COLOR, rect_neck)
-        pygame.draw.rect(surface, (50, 30, 10), rect_neck, 3)
+    def _draw_highway(self, surface):
+        bottom_left = (Config.CENTER_X - Config.BOTTOM_WIDTH // 2, Config.HIT_Y + 50)
+        bottom_right = (Config.CENTER_X + Config.BOTTOM_WIDTH // 2, Config.HIT_Y + 50)
+        top_left = (Config.CENTER_X - Config.TOP_WIDTH // 2, Config.HORIZON_Y)
+        top_right = (Config.CENTER_X + Config.TOP_WIDTH // 2, Config.HORIZON_Y)
 
-        # 2. Trastes (Casas 1 a 12) - Não desenhamos traste para a casa 0
-        for i in range(1, 13):
-            x = Config.get_fret_x(i) + 37
-            pygame.draw.line(surface, Config.FRET_COLOR, (x, Config.NECK_AREA_START_Y),
-                             (x, Config.NECK_AREA_START_Y + Config.NECK_HEIGHT), 4)
-            # Número da casa
-            num = self.small_font.render(str(i), True, Config.GRAY)
-            surface.blit(num, (x - 45, Config.NECK_AREA_START_Y - 20))
+        pygame.draw.polygon(surface, (20, 20, 30), [bottom_left, top_left, top_right, bottom_right])
+        pygame.draw.line(surface, Config.WHITE, (Config.CENTER_X - Config.BOTTOM_WIDTH // 2, Config.HIT_Y),
+                         (Config.CENTER_X + Config.BOTTOM_WIDTH // 2, Config.HIT_Y), 4)
+        pygame.draw.line(surface, (255, 255, 100), (Config.CENTER_X - Config.BOTTOM_WIDTH // 2, Config.HIT_Y),
+                         (Config.CENTER_X + Config.BOTTOM_WIDTH // 2, Config.HIT_Y), 2)
 
-        # 3. Pestana (Nut) - A barra grossa no início
-        nut_x = Config.NECK_START_X
-        pygame.draw.line(surface, Config.NUT_COLOR,
-                         (nut_x, Config.NECK_AREA_START_Y),
-                         (nut_x, Config.NECK_AREA_START_Y + Config.NECK_HEIGHT), 10)
-
-        # 4. Cordas no Braço
         for s in Config.STRINGS_ORDER:
-            y = Config.get_neck_y(s)
-            c = Config.get_string_color(s)
-            # Corda desenhada de ponta a ponta
-            pygame.draw.line(surface, Config.GRAY, (0, y), (Config.WIDTH, y), 2)
-            # Nome da corda
-            txt = self.small_font.render(s, True, c)
-            surface.blit(txt, (10, y - 8))
-
-            # Marcador de "Corda Solta" (0) fixo, apagado, fora do braço
-            zero_x = Config.get_fret_x(0)
-            pygame.draw.circle(surface, Config.DARK_GRAY, (int(zero_x), int(y)), 12, 1)
-            z_txt = self.small_font.render("0", True, Config.GRAY)
-            surface.blit(z_txt, (int(zero_x) - 4, int(y) - 8))
-
-    def _draw_tab_road(self, surface):
-        rect = pygame.Rect(0, Config.TAB_MARGIN_Y, Config.WIDTH, Config.TAB_AREA_HEIGHT)
-        pygame.draw.rect(surface, Config.DARK_GRAY, rect)
-        pygame.draw.line(surface, Config.WHITE, (Config.HIT_X, Config.TAB_MARGIN_Y),
-                         (Config.HIT_X, Config.TAB_MARGIN_Y + Config.TAB_AREA_HEIGHT), 4)
-        for s in Config.STRINGS_ORDER:
-            y = Config.get_tab_y(s)
-            c = Config.get_string_color(s)
-            pygame.draw.line(surface, Config.GRAY, (0, y), (Config.WIDTH, y), 1)
-            txt = self.small_font.render(s, True, c)
-            surface.blit(txt, (Config.HIT_X - 30, y - 10))
+            x_near, y_near, _ = Config.project_coordinates(s, -0.1)
+            x_far, y_far, _ = Config.project_coordinates(s, 1.0)
+            color = Config.get_string_color(s)
+            pygame.draw.line(surface, color, (x_near, y_near), (x_far, y_far), 2)
+            font = pygame.font.SysFont("Arial", 20, bold=True)
+            txt = font.render(s, True, color)
+            surface.blit(txt, (x_near - 5, y_near + 10))
 
     def play_song(self, song_id):
         data = self.library.get_song(song_id)
         if not data: return
-
         print(f"Carregando {data['titulo']}...")
         wav = AudioEngine.generate_wav(data['seq'], data['bpm'])
         if not wav: return
 
         screen = pygame.display.set_mode((Config.WIDTH, Config.HEIGHT))
-        pygame.display.set_caption(f"Guitar Learning - {data['titulo']}")
+        pygame.display.set_caption(f"Guitar 3D - {data['titulo']}")
         clock = pygame.time.Clock()
 
         notes = []
@@ -116,22 +81,36 @@ class GuitarGame:
                 if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE: running = False
 
             screen.fill(Config.BLACK)
-            self._draw_tab_road(screen)
-            self._draw_static_neck(screen)
 
-            info1 = self.small_font.render("RITMO (Olhe aqui para saber QUANDO tocar)", True, Config.WHITE)
-            screen.blit(info1, (Config.HIT_X + 20, 20))
-            info2 = self.small_font.render("POSIÇÃO (Olhe aqui para saber ONDE tocar)", True, Config.WHITE)
-            screen.blit(info2, (Config.NECK_START_X, Config.NECK_AREA_START_Y - 45))
+            # 1. DESENHA O CENÁRIO (FUNDO)
+            self._draw_highway(screen)
+            title = self.font.render(data['titulo'], True, Config.WHITE)
+            screen.blit(title, (20, 20))
 
+            # 2. ATUALIZA ESTADO E IDENTIFICA CORDAS ATIVAS
+            active_strings = []
             for n in notes:
                 n.update(current)
-                n.draw_scrolling(screen, current)
-                n.draw_on_neck(screen)
+                if n.ativa: active_strings.append(n.corda)
 
-            if any(n.ativa for n in notes):
-                pygame.draw.line(screen, (255, 255, 0), (Config.HIT_X, Config.TAB_MARGIN_Y),
-                                 (Config.HIT_X, Config.TAB_MARGIN_Y + Config.TAB_AREA_HEIGHT), 2)
+            # 3. DESENHA EFEITO DE CORDA ATIVA (MEIO)
+            # Desenhado ANTES das notas para ficar por baixo
+            for s in list(set(active_strings)):
+                x_near, y_near, _ = Config.project_coordinates(s, 0.0)
+                x_far, y_far, _ = Config.project_coordinates(s, 1.0)
+                c = Config.get_string_color(s)
+
+                # Linha brilhante (Fica sob a nota)
+                pygame.draw.line(screen, Config.WHITE, (x_near, y_near), (x_far, y_far), 4)
+
+                # Explosão de luz na base
+                pygame.draw.circle(screen, c, (x_near, y_near), 15)
+                pygame.draw.circle(screen, Config.WHITE, (x_near, y_near), 10)
+
+            # 4. DESENHA AS NOTAS (TOPO)
+            # Desenhado POR ÚLTIMO para garantir que a nota e o número cubram a linha da corda
+            for n in notes:
+                n.draw_3d(screen, current)
 
             pygame.display.flip()
             clock.tick(Config.FPS)
@@ -148,7 +127,7 @@ class GuitarGame:
     def run_menu(self):
         while True:
             print("\n" + "=" * 40)
-            print("   GUITAR LEARNING SYSTEM")
+            print("   GUITAR 3D SYSTEM")
             print("=" * 40)
             for k, v in self.library.get_all():
                 print(f"{k} - {v['titulo']}")

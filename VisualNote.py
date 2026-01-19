@@ -7,7 +7,7 @@ from Config import Config
 
 
 # ==============================================================================
-# 4. OBJETO VISUAL
+# 4. OBJETO VISUAL 3D
 # ==============================================================================
 class VisualNote:
     def __init__(self, corda, casa, tempo_alvo, duracao):
@@ -15,10 +15,6 @@ class VisualNote:
         self.casa = casa
         self.tempo_alvo = tempo_alvo
         self.duracao = duracao
-
-        self.y_tab = Config.get_tab_y(corda)
-        self.y_neck = Config.get_neck_y(corda)
-        self.x_neck = Config.get_fret_x(casa)
         self.cor = Config.get_string_color(corda)
         self.ativa = False
 
@@ -28,28 +24,39 @@ class VisualNote:
         else:
             self.ativa = False
 
-    def draw_scrolling(self, surface, current_time):
+    def draw_3d(self, surface, current_time):
         time_diff = self.tempo_alvo - current_time
-        x = Config.HIT_X + (time_diff * Config.SCROLL_SPEED)
+        progress = time_diff / (Config.START_DELAY / 1000.0)
 
-        if -50 < x < Config.WIDTH + 50:
-            radius = 16
-            pygame.draw.circle(surface, self.cor, (int(x), int(self.y_tab)), radius)
-            pygame.draw.circle(surface, Config.BLACK, (int(x), int(self.y_tab)), radius, 2)
+        if -0.1 < progress < 1.1:
+            x, y, scale = Config.project_coordinates(self.corda, progress)
+            w = int(60 * scale)
+            h = int(30 * scale)
 
-            font = pygame.font.SysFont("Arial", 18, bold=True)
-            text = font.render(str(self.casa), True, Config.BLACK)
-            surface.blit(text, text.get_rect(center=(int(x), int(self.y_tab))))
+            # --- CAMADA 1: RASTRO (FUNDO) ---
+            if self.duracao > 0.2:
+                end_time_diff = (self.tempo_alvo + self.duracao) - current_time
+                end_progress = end_time_diff / (Config.START_DELAY / 1000.0)
 
-            if self.duracao > 0.3:
-                sustain_width = (self.duracao * Config.SCROLL_SPEED)
-                rect = pygame.Rect(x + 10, self.y_tab - 4, sustain_width, 8)
-                if rect.right > 0: pygame.draw.rect(surface, self.cor, rect)
+                if end_progress < 1.2:
+                    draw_end_progress = min(end_progress, 1.0)
+                    end_x, end_y, _ = Config.project_coordinates(self.corda, draw_end_progress)
 
-    def draw_on_neck(self, surface):
-        if self.ativa:
-            pygame.draw.circle(surface, self.cor, (int(self.x_neck), int(self.y_neck)), 18)
-            pygame.draw.circle(surface, Config.WHITE, (int(self.x_neck), int(self.y_neck)), 20, 2)
-            font = pygame.font.SysFont("Arial", 16, bold=True)
-            txt = font.render(str(self.casa), True, Config.BLACK)
-            surface.blit(txt, txt.get_rect(center=(int(self.x_neck), int(self.y_neck))))
+                    tail_width = int(12 * scale)
+                    if tail_width < 2: tail_width = 2
+
+                    pygame.draw.line(surface, self.cor, (x, y), (end_x, end_y), tail_width)
+
+            # --- CAMADA 2: CORPO DA NOTA ---
+            # Retângulo arredondado para todas as notas (incluindo 0)
+            rect = pygame.Rect(x - w // 2, y - h // 2, w, h)
+            pygame.draw.rect(surface, self.cor, rect, border_radius=5)
+            pygame.draw.rect(surface, Config.WHITE, rect, 2, border_radius=5)
+
+            # --- CAMADA 3: NÚMERO ---
+            # O número é desenhado POR ÚLTIMO, garantindo que fique sobre tudo
+            font_size = int(24 * scale)
+            if font_size > 10:
+                font = pygame.font.SysFont("Arial", font_size, bold=True)
+                text = font.render(str(self.casa), True, Config.BLACK)
+                surface.blit(text, text.get_rect(center=(x, y)))

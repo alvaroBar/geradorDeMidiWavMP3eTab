@@ -2,76 +2,94 @@ import ctypes
 
 
 # ==============================================================================
-# 1. CONFIGURAÇÕES E CONSTANTES (MODO HORIZONTAL)
+# 1. CONFIGURAÇÕES
 # ==============================================================================
 class Config:
-    # Ajuste de DPI do Windows
     try:
         ctypes.windll.user32.SetProcessDPIAware()
     except:
         pass
 
-    # Tela (Widescreen para aproveitar a horizontalidade)
-    WIDTH = 1000
-    HEIGHT = 600
+    WIDTH = 1100
+    HEIGHT = 700
     FPS = 60
 
     # Cores
     BLACK = (20, 20, 20)
     WHITE = (255, 255, 255)
     GRAY = (100, 100, 100)
-    DARK_GRAY = (50, 50, 50)  # Cor do braço/fundo da tablatura
+    DARK_GRAY = (40, 40, 40)
+    WOOD_COLOR = (101, 67, 33)
+    FRET_COLOR = (180, 180, 180)
+    NUT_COLOR = (230, 230, 210)  # Cor de osso/marfim para a pestana
 
-    # Cores das cordas (Padrão Rocksmith/Guitar Hero)
+    # Cores das cordas
     STRING_COLORS = [
-        (255, 80, 80),  # E (Grave) - Vermelho
+        (255, 80, 80),  # E - Vermelho
         (255, 255, 80),  # A - Amarelo
         (80, 80, 255),  # D - Azul
         (80, 255, 80),  # G - Verde
         (255, 165, 0),  # B - Laranja
-        (200, 100, 255)  # e (Aguda) - Roxo
+        (200, 100, 255)  # e - Roxo
     ]
 
-    # Geometria do Braço (Horizontal)
-    # Vamos usar a convenção visual de olhar para o braço: E grave em CIMA ou EM BAIXO?
-    # Tablatura padrão: e (aguda) em cima, E (grave) em baixo.
-    # Mas visualmente "Guitar Hero" horizontal costuma por E (grave) em baixo.
-    # Vamos seguir TABLATURA PADRÃO: Linha de cima = e (aguda).
+    # Sincronia de Áudio/Vídeo
+    START_DELAY = 3000
 
-    # Altura da área onde ficam as cordas
-    TAB_HEIGHT = 300
-    MARGIN_Y = (HEIGHT - TAB_HEIGHT) // 2
+    # --- TABLATURA (CIMA) ---
+    TAB_AREA_HEIGHT = 350
+    TAB_MARGIN_Y = 50
+    HIT_X = 200
+    SCROLL_SPEED = 350
 
-    # Onde a nota deve ser tocada (Linha Vertical à Esquerda)
-    HIT_X = 150
+    # --- BRAÇO ESTÁTICO (BAIXO) ---
+    NECK_AREA_START_Y = 400
+    NECK_HEIGHT = 200
 
-    # Velocidade horizontal
-    SCROLL_SPEED = 300  # Pixels por segundo
+    # Ajuste: O braço começa um pouco mais para a direita para caber o "0" fora dele
+    NECK_START_X = 100
 
-    # Ordem das cordas para desenho (Visual Tablatura: e aguda no topo)
-    # Mas nossa lista de dados é ['E', 'A', 'D', 'G', 'B', 'e']
     STRINGS_ORDER = ['e', 'B', 'G', 'D', 'A', 'E']
 
-    # Frequências (para síntese se faltar sample)
-    FREQS = {'E': 82.41, 'A': 110.00, 'D': 146.83, 'G': 196.00, 'B': 246.94, 'e': 329.63}
-
     @staticmethod
-    def get_string_y(string_name):
-        """Retorna a posição Y da linha da corda (Horizontal)"""
+    def get_tab_y(string_name):
         try:
-            # Tablatura padrão: e (aguda) é a primeira linha (topo)
             idx = Config.STRINGS_ORDER.index(string_name)
-            spacing = Config.TAB_HEIGHT / (len(Config.STRINGS_ORDER) - 1)
-            return Config.MARGIN_Y + (idx * spacing)
+            spacing = (Config.TAB_AREA_HEIGHT - 40) / (len(Config.STRINGS_ORDER) - 1)
+            return Config.TAB_MARGIN_Y + 20 + (idx * spacing)
         except ValueError:
             return 0
 
     @staticmethod
-    def get_string_color(string_name):
-        # Mapeamos a cor baseada na corda original E A D G B e
-        original_order = ['E', 'A', 'D', 'G', 'B', 'e']
+    def get_neck_y(string_name):
         try:
-            idx = original_order.index(string_name)
-            return Config.STRING_COLORS[idx]
+            idx = Config.STRINGS_ORDER.index(string_name)
+            spacing = (Config.NECK_HEIGHT - 40) / (len(Config.STRINGS_ORDER) - 1)
+            return Config.NECK_AREA_START_Y + 20 + (idx * spacing)
         except ValueError:
+            return 0
+
+    @staticmethod
+    def get_fret_x(fret_number):
+        """
+        Lógica alterada:
+        - Casa 0: Fica À ESQUERDA da pestana (fora do braço).
+        - Casa 1+: Fica DENTRO do braço.
+        """
+        fret_width = 75
+
+        if fret_number == 0:
+            # Posição da corda solta (antes do braço começar)
+            return Config.NECK_START_X - 35
+        else:
+            # Posição normal (start + (casa * largura) - metade_da_largura)
+            # O '-1' é porque agora o loop começa da casa 1 fisicamente
+            return Config.NECK_START_X + (fret_number * fret_width) - (fret_width / 2)
+
+    @staticmethod
+    def get_string_color(string_name):
+        order = ['E', 'A', 'D', 'G', 'B', 'e']
+        try:
+            return Config.STRING_COLORS[order.index(string_name)]
+        except:
             return Config.WHITE

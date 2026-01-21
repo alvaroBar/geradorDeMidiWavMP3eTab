@@ -3,8 +3,18 @@ import os
 import sys
 import ctypes
 import math
+import numpy as np
+import cv2  # OpenCV para gravar vídeo
 from pydub import AudioSegment, effects
 from pydub.silence import detect_leading_silence
+
+# Tenta importar MoviePy
+try:
+    from moviepy.editor import VideoFileClip, AudioFileClip
+
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
 
 
 # ==============================================================================
@@ -26,7 +36,6 @@ class Config:
     GRAY = (100, 100, 100)
     DARK_GRAY = (30, 30, 30)
 
-    # Cores Neon (Estilo Rocksmith)
     STRING_COLORS = [
         (255, 60, 60),  # E - Vermelho
         (255, 255, 60),  # A - Amarelo
@@ -37,14 +46,11 @@ class Config:
     ]
 
     START_DELAY = 3000
-
-    # --- GEOMETRIA 3D ---
     HORIZON_Y = 100
     HIT_Y = 600
-    BOTTOM_WIDTH = 750  # Um pouco mais largo para caber melhor os números
+    BOTTOM_WIDTH = 750
     TOP_WIDTH = 80
     CENTER_X = WIDTH // 2
-
     STRINGS_ORDER = ['E', 'A', 'D', 'G', 'B', 'e']
 
     @staticmethod
@@ -59,15 +65,11 @@ class Config:
     def project_coordinates(string_name, progress):
         y = Config.HIT_Y - (progress * (Config.HIT_Y - Config.HORIZON_Y))
         current_track_width = Config.BOTTOM_WIDTH - (progress * (Config.BOTTOM_WIDTH - Config.TOP_WIDTH))
-
         idx = Config.STRINGS_ORDER.index(string_name)
         center_offset = idx - 2.5
-
         string_spacing = current_track_width / 6
         x = Config.CENTER_X + (center_offset * string_spacing) + (string_spacing / 2)
-
         scale = 1.0 - (progress * 0.7)
-
         return int(x), int(y), scale
 
 
@@ -118,7 +120,7 @@ class AudioEngine:
             ms_per_beat = (60.0 / bpm) * 1000.0
             pos = Config.START_DELAY
 
-            print("   > Renderizando áudio...")
+            print("   > Gerando áudio wav...")
             for item in seq:
                 s, f, b = item
                 dur = b * ms_per_beat
@@ -363,7 +365,7 @@ class MusicLibrary:
 
 
 # ==============================================================================
-# 4. OBJETO VISUAL 3D (Z-ORDER CORRIGIDO)
+# 4. OBJETO VISUAL
 # ==============================================================================
 class VisualNote:
     def __init__(self, corda, casa, tempo_alvo, duracao):
@@ -381,77 +383,40 @@ class VisualNote:
             self.ativa = False
 
     def draw_3d(self, surface, current_time):
-        # Calcular progresso (0 = Hit, 1 = Horizonte)
         time_diff = self.tempo_alvo - current_time
         progress = time_diff / (Config.START_DELAY / 1000.0)
 
-        # Só desenha se estiver no campo de visão
         if -0.1 < progress < 1.1:
             x, y, scale = Config.project_coordinates(self.corda, progress)
             w = int(60 * scale)
             h = int(30 * scale)
 
-            # Centro da nota
-            center_pos = (x, y)
-
-            # ==============================================================
-            # CAMADA 1: RASTRO/SUSTAIN (FUNDO)
-            # Desenha isso PRIMEIRO para ficar atrás da nota
-            # ==============================================================
+            # Camada 1: Rastro
             if self.duracao > 0.2:
                 end_time_diff = (self.tempo_alvo + self.duracao) - current_time
                 end_progress = end_time_diff / (Config.START_DELAY / 1000.0)
-
-                # Se o final do sustain ainda está na "estrada"
                 if end_progress < 1.2:
-                    # Se o sustain for muito longo e passar do horizonte, clamp em 1.0
                     draw_end_progress = min(end_progress, 1.0)
                     end_x, end_y, _ = Config.project_coordinates(self.corda, draw_end_progress)
-
-                    # Espessura do rastro (mais fino que a nota)
                     tail_width = int(12 * scale)
                     if tail_width < 2: tail_width = 2
-
                     pygame.draw.line(surface, self.cor, (x, y), (end_x, end_y), tail_width)
 
-            # ==============================================================
-            # CAMADA 2: CORPO DA NOTA (MEIO)
-            # ==============================================================
-            if self.casa == 0:
-                # CORDA SOLTA: Barra Horizontal Larga (Estilo Rocksmith)
-                # Não usamos mais o quadrado branco. Usamos a cor da corda.
-                bar_w = int(Config.BOTTOM_WIDTH / 6 * scale * 0.9)  # Quase a largura da pista
-                bar_h = int(8 * scale)
-                if bar_h < 3: bar_h = 3
+            # Camada 2: Nota
+            rect = pygame.Rect(x - w // 2, y - h // 2, w, h)
+            pygame.draw.rect(surface, self.cor, rect, border_radius=5)
+            pygame.draw.rect(surface, Config.WHITE, rect, 2, border_radius=5)
 
-                bar_rect = pygame.Rect(x - bar_w // 2, y - bar_h // 2, bar_w, bar_h)
-
-                # Barra sólida colorida
-                pygame.draw.rect(surface, self.cor, bar_rect, border_radius=2)
-                # Brilho branco no centro
-                pygame.draw.rect(surface, (255, 255, 255), (x - bar_w // 4, y - 1, bar_w // 2, 2))
-
-            else:
-                # NOTA NORMAL: Gem (Retângulo Arredondado)
-                rect = pygame.Rect(x - w // 2, y - h // 2, w, h)
-                pygame.draw.rect(surface, self.cor, rect, border_radius=5)
-                # Borda branca para destacar
-                pygame.draw.rect(surface, Config.WHITE, rect, 2, border_radius=5)
-
-            # ==============================================================
-            # CAMADA 3: NÚMERO (FRENTE)
-            # ==============================================================
-            if self.casa > 0:
-                font_size = int(24 * scale)
-                if font_size > 10:
-                    font = pygame.font.SysFont("Arial", font_size, bold=True)
-                    # Texto preto para contraste
-                    text = font.render(str(self.casa), True, Config.BLACK)
-                    surface.blit(text, text.get_rect(center=(x, y)))
+            # Camada 3: Número
+            font_size = int(24 * scale)
+            if font_size > 10:
+                font = pygame.font.SysFont("Arial", font_size, bold=True)
+                text = font.render(str(self.casa), True, Config.BLACK)
+                surface.blit(text, text.get_rect(center=(x, y)))
 
 
 # ==============================================================================
-# 5. JOGO PRINCIPAL (HIGHWAY)
+# 5. JOGO PRINCIPAL (COM CORREÇÃO DE ÁUDIO)
 # ==============================================================================
 class GuitarGame:
     def __init__(self):
@@ -459,7 +424,6 @@ class GuitarGame:
         pygame.mixer.init()
         self.library = MusicLibrary()
         self.font = pygame.font.SysFont("Arial", 22, bold=True)
-        self.small_font = pygame.font.SysFont("Arial", 16)
 
     def _draw_highway(self, surface):
         bottom_left = (Config.CENTER_X - Config.BOTTOM_WIDTH // 2, Config.HIT_Y + 50)
@@ -482,12 +446,22 @@ class GuitarGame:
             txt = font.render(s, True, color)
             surface.blit(txt, (x_near - 5, y_near + 10))
 
-    def play_song(self, song_id):
+    def play_song(self, song_id, record_mode=False):
         data = self.library.get_song(song_id)
         if not data: return
         print(f"Carregando {data['titulo']}...")
-        wav = AudioEngine.generate_wav(data['seq'], data['bpm'])
-        if not wav: return
+
+        wav_filename = AudioEngine.generate_wav(data['seq'], data['bpm'])
+        if not wav_filename: return
+
+        video_writer = None
+        if record_mode:
+            print("\n!!! MODO GRAVAÇÃO INICIADO !!!")
+            print("A janela ficará lenta e sem som agora.")
+            # Codec MP4V costuma ser padrão, mas às vezes H264 exige instalação.
+            # Se der erro aqui, tente 'DIVX' com .avi
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter('temp_video.mp4', fourcc, Config.FPS, (Config.WIDTH, Config.HEIGHT))
 
         screen = pygame.display.set_mode((Config.WIDTH, Config.HEIGHT))
         pygame.display.set_caption(f"Guitar 3D - {data['titulo']}")
@@ -503,17 +477,23 @@ class GuitarGame:
             if s != 'PAUSA': notes.append(VisualNote(s, f, acc_time, dur))
             acc_time += dur
 
-        try:
-            pygame.mixer.music.load(wav)
-        except:
-            pass
+        if not record_mode:
+            try:
+                pygame.mixer.music.load(wav_filename)
+            except:
+                pass
+            pygame.mixer.music.play()
+            start_ticks = pygame.time.get_ticks()
 
         running = True
-        pygame.mixer.music.play()
-        start_ticks = pygame.time.get_ticks()
+        frame_count = 0
+        total_duration = acc_time + 4.0
 
         while running:
-            current = (pygame.time.get_ticks() - start_ticks) / 1000.0
+            if record_mode:
+                current_time = frame_count / Config.FPS
+            else:
+                current_time = (pygame.time.get_ticks() - start_ticks) / 1000.0
 
             for e in pygame.event.get():
                 if e.type == pygame.QUIT: running = False
@@ -524,10 +504,14 @@ class GuitarGame:
             title = self.font.render(data['titulo'], True, Config.WHITE)
             screen.blit(title, (20, 20))
 
+            if record_mode:
+                rec_text = self.font.render("GRAVANDO...", True, (255, 0, 0))
+                screen.blit(rec_text, (Config.WIDTH - 150, 20))
+
+            # Atualiza e desenha brilho da corda (Fundo)
             active_strings = []
             for n in notes:
-                n.update(current)
-                n.draw_3d(screen, current)
+                n.update(current_time)
                 if n.ativa: active_strings.append(n.corda)
 
             for s in list(set(active_strings)):
@@ -538,30 +522,85 @@ class GuitarGame:
                 pygame.draw.circle(screen, c, (x_near, y_near), 15)
                 pygame.draw.circle(screen, Config.WHITE, (x_near, y_near), 10)
 
+            # Desenha notas (Topo)
+            for n in notes:
+                n.draw_3d(screen, current_time)
+
             pygame.display.flip()
-            clock.tick(Config.FPS)
 
-            if current > acc_time + 4.0: running = False
+            if record_mode:
+                view = pygame.surfarray.array3d(screen)
+                view = view.transpose([1, 0, 2])
+                view = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)
+                video_writer.write(view)
+                frame_count += 1
+                if frame_count % 60 == 0:
+                    print(f"   > Processando: {current_time:.1f}s / {total_duration:.1f}s")
 
-        pygame.mixer.music.stop()
-        pygame.mixer.music.unload()
-        try:
-            os.remove(wav)
-        except:
-            pass
+            if not record_mode:
+                clock.tick(Config.FPS)
+
+            if current_time > total_duration:
+                running = False
+
+        if not record_mode:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.unload()
+        else:
+            video_writer.release()
+            cv2.destroyAllWindows()
+
+            if MOVIEPY_AVAILABLE:
+                print("   > Unindo áudio e vídeo...")
+                try:
+                    video_clip = VideoFileClip("temp_video.mp4")
+                    audio_clip = AudioFileClip(wav_filename)
+                    # Garante duração igual
+                    duration = min(video_clip.duration, audio_clip.duration)
+                    video_clip = video_clip.subclip(0, duration)
+                    audio_clip = audio_clip.subclip(0, duration)
+
+                    final_clip = video_clip.set_audio(audio_clip)
+                    final_output = f"{data['titulo'].replace(' ', '_')}_FINAL.mp4"
+
+                    # Escreve arquivo final com áudio
+                    final_clip.write_videofile(final_output, codec='libx264', audio_codec='aac')
+
+                    print(f"\n✅ SUCESSO! Vídeo salvo: {final_output}")
+
+                    # Limpeza apenas se deu certo
+                    video_clip.close()
+                    audio_clip.close()
+                    os.remove("temp_video.mp4")
+                    os.remove(wav_filename)
+
+                except Exception as e:
+                    print(f"\n❌ ERRO ao juntar áudio: {e}")
+                    print("MANTEREI OS ARQUIVOS 'temp_video.mp4' e 'temp.wav'.")
+                    print("Você pode juntá-los em qualquer editor de vídeo.")
+            else:
+                print("\n⚠️ MOVIEPY NÃO INSTALADO.")
+                print("Salvei 'temp_video.mp4' (sem som) e o arquivo WAV.")
+                print("Instale 'pip install moviepy' para gerar com som na próxima.")
 
     def run_menu(self):
         while True:
             print("\n" + "=" * 40)
-            print("   GUITAR 3D SYSTEM")
+            print("   GUITAR 3D - GERADOR")
             print("=" * 40)
             for k, v in self.library.get_all():
                 print(f"{k} - {v['titulo']}")
             print("0 - Sair")
+
             op = input("\nEscolha: ")
             if op == '0': break
-            self.play_song(op)
-        pygame.quit()
+
+            if op in self.library._songs:
+                mode = input("Digite 'R' para RENDERIZAR VÍDEO ou Enter para apenas tocar: ").upper()
+                if mode == 'R':
+                    self.play_song(op, record_mode=True)
+                else:
+                    self.play_song(op, record_mode=False)
 
 
 if __name__ == "__main__":
